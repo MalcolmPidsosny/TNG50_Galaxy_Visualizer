@@ -1,5 +1,6 @@
 [build-system]
 requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [project]
 name = "TNG50_Data_Visualizer_MalcolmPidsosny"
@@ -15,8 +16,18 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 license = "MIT"
-license-files = ["LICEN[CS]E*"]
+license-files = ["LICENSE"]
 
 [project.urls]
 Homepage = "https://github.com/MalcolmPidsosny/TNG50_Galaxy_Visualizer"
 Issues = "https://github.com/MalcolmPidsosny/TNG50_Galaxy_Visualizer/issues"
+
+dependencies = [
+  "numpy>=1.26.4",
+  "scipy>=1.12.0",
+  "illustris_python",
+  "sklearn",
+  "astropy",
+  "yt",
+]
+
