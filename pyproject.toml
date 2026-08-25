@@ -1,1 +1,22 @@
+[build-system]
+requires = ["hatchling"]
 
+[project]
+name = "TNG50_Data_Visualizer_MalcolmPidsosny"
+version = "0.1.0"
+authors = [
+  { name="Malcolm Pidsosny", email="malcolm.pidsosny@gmail.com" },
+]
+description = "Data visualizer for TNG50 Galaxies in different particle types"
+readme = "README.md"
+requires-python = ">=3.9"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+license = "MIT"
+license-files = ["LICEN[CS]E*"]
+
+[project.urls]
+Homepage = "https://github.com/MalcolmPidsosny/TNG50_Galaxy_Visualizer"
+Issues = "https://github.com/MalcolmPidsosny/TNG50_Galaxy_Visualizer/issues"
