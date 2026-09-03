@@ -67,11 +67,11 @@ def run_tng50_visualizer(config_file):
             )
         
         subhalo_stars_physical_grid   = (
-            dt.stars_data_grid_conversion(subhalo_stars_physical, resolution, radius)
+            dt.star_data_grid_conversion(subhalo_stars_physical, resolution, radius)
             )
         
         subhalo_dm_physical_grid    = (
-            dt.stars_data_grid_conversion(subhalo_dm_physical, resolution, radius)
+            dt.dm_data_grid_conversion(subhalo_dm_physical, resolution, radius)
             )
         
         ################################################################################################################

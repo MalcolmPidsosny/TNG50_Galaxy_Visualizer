@@ -22,7 +22,6 @@ def load_subhalo_info(data_path,
     subhalo = il.snapshot.loadSingle(data_path, snapshot, subhaloID=subhalo_ID)
     header = il.groupcat.loadHeader(data_path, snapshot)
     
-    #z_redshift = 3 # JW: renamed z (z is used as a coordinate later)
     z_redshift = header["Redshift"]
     scale_factor = 1 / (1 + z_redshift)
     h_cosmo = cosmo.H(0).value / 100
@@ -55,7 +54,7 @@ def load_subhalo_gas(
     
     
     # We now put the coordinates into units of kpc from ckpc/h
-    subhalo_gas_physical['Coordinates'] = subhalo_gas['Coordinates'] * scale_factor / h_cosmo - origin                    # kpc
+    subhalo_gas_physical['Coordinates'] = subhalo_gas['Coordinates'] * scale_factor / h_cosmo - origin                  # kpc
     particle_radii = np.linalg.norm(subhalo_gas_physical['Coordinates'], axis=1)
     # Remove any unwanted data beyond the specified radius
     mask_goodgas = (particle_radii <= radius)
@@ -77,7 +76,7 @@ def load_subhalo_gas(
     factor = 1.0
     h_smoothing = factor * (
         (0.75 * particle_volumes / np.pi) ** (1 / 3)
-        ) #JW: factor
+        )
     subhalo_gas_physical['h_smoothing'] = h_smoothing
     
     
@@ -119,7 +118,7 @@ def load_subhalo_stars(
     
     
     # We now put the coordinates into units of kpc from ckpc/h
-    subhalo_stars_physical['Coordinates'] = subhalo_stars['Coordinates'] * scale_factor / h_cosmo - origin                # kpc
+    subhalo_stars_physical['Coordinates'] = subhalo_stars['Coordinates'] * scale_factor / h_cosmo - origin              # kpc
     particle_radii = np.linalg.norm(subhalo_stars_physical['Coordinates'], axis=1)
     # Remove any unwanted data beyond the specified radius and with a stellar age of 0
     mask_good_stars = (particle_radii <= radius) & (subhalo_stars['GFM_StellarFormationTime'] > 0)
@@ -149,7 +148,7 @@ def load_subhalo_stars(
     else:
         subhalo_stars_physical['stellar_ages'] = (
             0.95 / ((1 + z_redshift) / 7.0) ** 1.5 - 0.95 / 
-            ((1 + stellar_redshifts) / 7.0) ** 1.5)                                       # Gyr
+            ((1 + stellar_redshifts) / 7.0) ** 1.5)                                                                     # Gyr
 
 
     return(subhalo_stars_physical)
@@ -162,7 +161,7 @@ def load_subhalo_dm(
         origin,
         scale_factor,
         h_cosmo,
-        radius=15                   # kpc
+        radius=15                                                                                                       # kpc
         ):
     
     
@@ -180,7 +179,7 @@ def load_subhalo_dm(
     # We now put the coordinates into units of kpc from ckpc/h
     subhalo_dm_physical['Coordinates'] = (
         subhalo_dm['Coordinates'] * 
-        scale_factor / h_cosmo - origin)                                                  # kpc
+        scale_factor / h_cosmo - origin)                                                                                # kpc
     
     particle_radii = np.linalg.norm(
         subhalo_dm_physical['Coordinates'], axis=1)
@@ -196,7 +195,7 @@ def load_subhalo_dm(
     
     subhalo_dm_physical['Velocities'] = (
         subhalo_dm['Velocities'][mask_good_dm, :]
-        * np.sqrt(scale_factor))                                                          # km/s
+        * np.sqrt(scale_factor))                                                                                        # km/s
     
     
     return(subhalo_dm_physical)
@@ -209,7 +208,8 @@ def rotational_matrix(
         ):
     
     
-    # Densities can be used in place of masses if no mass data are present
+    # Rotational Matrix uses mass & velocity data from gas or stars
+    # No mass data is directly available for dark matter
     # Cross product for each particle
     L = np.cross(coordinates, velocities)   # shape (N, 3)
     L_total = np.sum(L * masses[:, None], axis = 0)
@@ -247,8 +247,11 @@ def gas_data_grid_conversion(
         radius=15,                  # kpc
         ):
     
+    # This function converts the gas voronoi cells into a uniform cubic grid
+    # It uses the Cubic Spline SPH smoothing kernel as documented by IllustrisTNG
     
     def W(h, d):
+        # Cubic Spline SPH Smoothing kernel for weight calculation during grid placement
         sig = 1/(np.pi * h ** 3)
         # d and h need to be in the same units
         q = d/h
@@ -271,13 +274,16 @@ def gas_data_grid_conversion(
     # We now need to initialize our cubic grids
     # Start by initiating our data grids
     subhalo_gas_physical_grid = {}
-    subhalo_gas_physical_grid['gas', 'mass'] = np.zeros(n ** 3)
-    subhalo_gas_physical_grid['gas', 'density'] = np.zeros(n ** 3)
-    subhalo_gas_physical_grid['gas', 'temperature'] = np.zeros(n ** 3)
-    subhalo_gas_physical_grid['gas', 'velocity'] = np.zeros(n ** 3)
-    subhalo_gas_physical_grid['gas', 'velocity_x'] = np.zeros(n ** 3)
-    subhalo_gas_physical_grid['gas', 'velocity_y'] = np.zeros(n ** 3)
-    subhalo_gas_physical_grid['gas', 'velocity_z'] = np.zeros(n ** 3)
+    subhalo_gas_physical_grid[('gas', 'mass')] = np.zeros(n ** 3)
+    subhalo_gas_physical_grid[('gas', 'density')] = np.zeros(n ** 3)
+    subhalo_gas_physical_grid[('gas', 'temperature')] = np.zeros(n ** 3)
+    subhalo_gas_physical_grid[('gas', 'velocity')] = np.zeros(n ** 3)
+    subhalo_gas_physical_grid[('gas', 'velocity_x')] = np.zeros(n ** 3)
+    subhalo_gas_physical_grid[('gas', 'velocity_y')] = np.zeros(n ** 3)
+    subhalo_gas_physical_grid[('gas', 'velocity_z')] = np.zeros(n ** 3)
+    
+    print(type(subhalo_gas_physical_grid[('gas', 'mass')]))
+    print(type(subhalo_gas_physical_grid[('gas', 'temperature')]))
 
     # Coordinates
     min_all, max_all = -radius, radius
@@ -285,8 +291,6 @@ def gas_data_grid_conversion(
 
     # Indices of Coordinates
     coord_index_range = (np.linspace(0, grid_shape[0]-1, num=grid_shape[0])).astype(int)
-    #y_index_range = (np.linspace(0, grid_shape[0]-1, num=grid_shape[0])).astype(int)
-    #z_index_range = (np.linspace(0, grid_shape[0]-1, num=grid_shape[0])).astype(int)
 
     # Create a grid of coordinates using meshgrid
     x, y, z = np.meshgrid(coord_range, coord_range, coord_range, indexing='ij')
@@ -316,9 +320,6 @@ def gas_data_grid_conversion(
     sum_weights = np.zeros([n,n,n]).flatten()
     sum_weights2 = np.zeros([n,n,n]).flatten()
 
-    #args = [x_ind, y_ind, z_ind, indices, h_gas, dr, indall, coordinates_2d, edited_coordinates, raw_density, density_grid, raw_data, data_grid, sum_weights, sum_weights2]
-    #print(args)
-    #density_grid, data_grid, sum_weights, sum_weights2 = processing(loop_function, num_threads, args)
 
 
     # for every gas particle:
@@ -328,31 +329,34 @@ def gas_data_grid_conversion(
         iiz = z_ind[indices[i][0]]
 
         # find the number of cells that are roughly equal to h
-        nn = nn_multiplier * np.ceil(subhalo_gas_physical['h_smoothing'][i] / dr).astype(int)    #dr is sqrt( dx*2 + dy^2 + dz^2) where the dx, dy, dz are the physical grid cell size
+        nn = nn_multiplier * np.ceil(subhalo_gas_physical['h_smoothing'][i] / dr).astype(int)    
+        #dr is sqrt( dx*2 + dy^2 + dz^2) where the dx, dy, dz are the physical grid cell size
 
         # the indices of grid_coords that surround the nearest grid coordinate:
         indices_box = indall[iix - nn:iix + nn, iiy - nn:iiy + nn, iiz - nn:iiz + nn].flatten() 
 
-        # now that you have the indices of the grid_coords, you can work out the distances of each of these to the gas particle
-        # coordinates_2d and edited_coordinates are both in the same units as necessary. They are both in kpc
+        # Now that you have the indices of the grid_coords, 
+        # you can work out the distances of each of these to the gas particle
         box_distances = np.sqrt(np.sum((coordinates_2d[indices_box] -
                                         subhalo_gas_physical['Coordinates'][i]) ** 2, axis = 1))
-        ind = np.where(box_distances < 2.0 * subhalo_gas_physical['h_smoothing'][i])[0] # JW: limiting the coordinates cuts the loop time in half
-        weight = W(subhalo_gas_physical['h_smoothing'][i], box_distances[ind]) # We use the weight function in order to 
+        # Limiting the coordinates cuts the loop time in half
+        ind = np.where(box_distances < 2.0 * subhalo_gas_physical['h_smoothing'][i])[0] 
+        # Now find the weights using the cubic spline kernel
+        weight = W(subhalo_gas_physical['h_smoothing'][i], box_distances[ind]) 
 
 
-        subhalo_gas_physical_grid['gas', 'density'][indices_box[ind]] +=(
+        subhalo_gas_physical_grid[('gas', 'density')][indices_box[ind]] +=(
             weight * (subhalo_gas_physical['Density'][i]))
         
-        subhalo_gas_physical_grid['gas', 'mass'][indices_box[ind]] += (
+        subhalo_gas_physical_grid[('gas', 'mass')][indices_box[ind]] += (
             weight * subhalo_gas_physical['Masses'][i])
         
         for axis_num, axis in enumerate(['x', 'y', 'z']):        
-            subhalo_gas_physical_grid['gas', f'velocity_{axis}'][indices_box[ind]] += (
+            subhalo_gas_physical_grid[('gas', f'velocity_{axis}')][indices_box[ind]] += (
                 weight * (subhalo_gas_physical['Masses'][i] *
                           subhalo_gas_physical['Velocities'][i, axis_num]))        
         
-        subhalo_gas_physical_grid['gas', 'temperature'][indices_box[ind]] += weight * (
+        subhalo_gas_physical_grid[('gas', 'temperature')][indices_box[ind]] += weight * (
             subhalo_gas_physical['Masses'][i] * subhalo_gas_physical['Temperature'][i])
         
         
@@ -378,52 +382,76 @@ def gas_data_grid_conversion(
 
     print('Percent 0s = ',(zero_mask.sum()/(27e6))*100)
 
-    subhalo_gas_physical_grid['gas', 'density'] /= sum_weights                                                          # M_sun/kpc
+    subhalo_gas_physical_grid[('gas', 'density')] /= sum_weights                                                        # M_sun/kpc
     
-    subhalo_gas_physical_grid['gas', 'mass'] /= n ** 3                                                                  # M_sun
+    subhalo_gas_physical_grid[('gas', 'mass')] /= n ** 3                                                                # M_sun
     
     for axis in ['x', 'y', 'z']:
-        subhalo_gas_physical_grid['gas', f'velocity_{axis}'] /= sum_weights2                                                         # km/s
+        subhalo_gas_physical_grid[('gas', f'velocity_{axis}')] /= sum_weights2                                          # km/s
     
-    subhalo_gas_physical_grid['gas', 'temperature'] /= sum_weights2                                                     # K
+    subhalo_gas_physical_grid[('gas', 'temperature')] /= sum_weights2                                                   # K
 
     
-    subhalo_gas_physical_grid['gas', 'velocity'] = np.sqrt(
-        subhalo_gas_physical_grid['gas', 'velocity_x'] ** 2 +
-        subhalo_gas_physical_grid['gas', 'velocity_y'] ** 2 +
-        subhalo_gas_physical_grid['gas', 'velocity_z'] ** 2)
+    subhalo_gas_physical_grid[('gas', 'velocity')] = np.sqrt(
+        subhalo_gas_physical_grid[('gas', 'velocity_x')] ** 2 +
+        subhalo_gas_physical_grid[('gas', 'velocity_y')] ** 2 +
+        subhalo_gas_physical_grid[('gas', 'velocity_z')] ** 2)
 
     ####################################################################################################################
 
-    subhalo_gas_physical_grid['gas', 'density']     = (
-        subhalo_gas_physical_grid['gas', 'density'].reshape(
-            (n,n,n)).astype('float32'), "Msun/kpc**3")
-    subhalo_gas_physical_grid['gas', 'mass']        = (
-        subhalo_gas_physical_grid['gas', 'mass'].reshape(
-            (n,n,n)).astype('float32'), "Msun")
-    subhalo_gas_physical_grid['gas', 'velocity']    = (
-        subhalo_gas_physical_grid['gas', 'velocity'].reshape(
-            (n,n,n)).astype('float32'), "km/s")
-    subhalo_gas_physical_grid['gas', 'temperature'] = (
-        subhalo_gas_physical_grid['gas', 'temperature'].reshape(
-            (n,n,n)).astype('float32'), "K")
-    
-    for axis in ['x', 'y', 'z']:
-        subhalo_gas_physical_grid['gas', f'velocity_{axis}']    = (
-            subhalo_gas_physical_grid['gas', f'velocity_{axis}'].reshape(
-                (n,n,n)).astype('float32'), "km/s")
-    
+    print(type(subhalo_gas_physical_grid[('gas', 'temperature')].reshape((n,n,n))))
+    print(type(subhalo_gas_physical_grid[('gas', 'temperature')].reshape((n,n,n)).astype('float32')))    
     
     subhalo_cool_gas_physical_grid = subhalo_gas_physical_grid.copy()
 
-    hot_mask = (subhalo_gas_physical_grid['gas', 'temperature'] > 5e4)
+    hot_mask = (subhalo_gas_physical_grid[('gas', 'temperature')] > 5e4)
     
-    subhalo_cool_gas_physical_grid['gas', 'density'][hot_mask]      = 0
-    subhalo_cool_gas_physical_grid['gas', 'mass'][hot_mask]         = 0
-    subhalo_cool_gas_physical_grid['gas', 'velocity'][hot_mask]     = 0
-    subhalo_cool_gas_physical_grid['gas', 'temperature'][hot_mask]  = 0
+    subhalo_cool_gas_physical_grid[('gas', 'density')][hot_mask]      = 0
+    subhalo_cool_gas_physical_grid[('gas', 'mass')][hot_mask]         = 0
+    subhalo_cool_gas_physical_grid[('gas', 'velocity')][hot_mask]     = 0
+    subhalo_cool_gas_physical_grid[('gas', 'temperature')][hot_mask]  = 0
     for axis in ['x', 'y', 'z']:
-        subhalo_cool_gas_physical_grid['gas', f'velocity_{axis}'][hot_mask]  = 0
+        subhalo_cool_gas_physical_grid[('gas', f'velocity_{axis}')][hot_mask]  = 0
+        
+        
+        
+    subhalo_gas_physical_grid[('gas', 'density')]     = (
+        subhalo_gas_physical_grid[('gas', 'density')].reshape(
+            (n,n,n)).astype('float32'), "Msun/kpc**3")
+    subhalo_gas_physical_grid[('gas', 'mass')]        = (
+        subhalo_gas_physical_grid[('gas', 'mass')].reshape(
+            (n,n,n)).astype('float32'), "Msun")
+    subhalo_gas_physical_grid[('gas', 'velocity')]    = (
+        subhalo_gas_physical_grid[('gas', 'velocity')].reshape(
+            (n,n,n)).astype('float32'), "km/s")
+    subhalo_gas_physical_grid[('gas', 'temperature')] = (
+        subhalo_gas_physical_grid[('gas', 'temperature')].reshape(
+            (n,n,n)).astype('float32'), "K")
+    
+    for axis in ['x', 'y', 'z']:
+        subhalo_gas_physical_grid[('gas', f'velocity_{axis}')]    = (
+            subhalo_gas_physical_grid[('gas', f'velocity_{axis}')].reshape(
+                (n,n,n)).astype('float32'), "km/s")    
+        
+        
+    subhalo_cool_gas_physical_grid[('gas', 'density')]     = (
+        subhalo_cool_gas_physical_grid[('gas', 'density')].reshape(
+            (n,n,n)).astype('float32'), "Msun/kpc**3")
+    subhalo_cool_gas_physical_grid[('gas', 'mass')]        = (
+        subhalo_cool_gas_physical_grid[('gas', 'mass')].reshape(
+            (n,n,n)).astype('float32'), "Msun")
+    subhalo_cool_gas_physical_grid[('gas', 'velocity')]    = (
+        subhalo_cool_gas_physical_grid[('gas', 'velocity')].reshape(
+            (n,n,n)).astype('float32'), "km/s")
+    subhalo_cool_gas_physical_grid[('gas', 'temperature')] = (
+        subhalo_cool_gas_physical_grid[('gas', 'temperature')].reshape(
+            (n,n,n)).astype('float32'), "K")
+    
+    for axis in ['x', 'y', 'z']:
+        subhalo_cool_gas_physical_grid[('gas', f'velocity_{axis}')]    = (
+            subhalo_cool_gas_physical_grid[('gas', f'velocity_{axis}')].reshape(
+                (n,n,n)).astype('float32'), "km/s")   
+        
     
     return(subhalo_gas_physical_grid, subhalo_cool_gas_physical_grid)
 
@@ -433,11 +461,13 @@ def star_data_grid_conversion(
         resolution=0.1,
         radius=15,
         ):
-    
+    # This function places the stellar particles onto the uniform cubic grid using a cloud-in-cell approach
     
     def cloud_in_cell(raw_stars, grid_stars, resolution, n, radius):
-        # We need to use a cloud-in-cell method of smoothing the stars, so we use the nearest neighbour 8 cells to the stellar particle
-        # It needs to be a 2x2x2 cube around the particle, a floor-ceiling x floor ceiling x floor ceiling approach
+        # Stars are stored as particle data as opposed to voronoi cells used by gas
+        # We need to use a cloud-in-cell method of smoothing the stars
+        # We use the nearest neighbour 8 cells to the stellar particle
+        # It needs to be a 2x2x2 cube around the particle, a floor-ceiling x floor-ceiling x floor-ceiling approach
         # Mass is proportional by: (i+1)x * (j+1)y * (k+1)z for coordinates (i,j,k) where i = x.floor()
         
         
@@ -501,23 +531,27 @@ def star_data_grid_conversion(
         flat_weights = weights.ravel()
         flat_mass = np.repeat(raw_stars['Masses'], 8)
         flat_age_mass = np.repeat(raw_stars['stellar_ages'], 8) * flat_mass
-        flat_velocity_mass = np.repeat(raw_stars['Velocities'], 8) * flat_mass
+        flat_velocity_mass_x = np.repeat(raw_stars['Velocities'][:, 0], 8) * flat_mass
+        flat_velocity_mass_y = np.repeat(raw_stars['Velocities'][:, 1], 8) * flat_mass
+        flat_velocity_mass_z = np.repeat(raw_stars['Velocities'][:, 2], 8) * flat_mass
             
-        np.add.at(grid_stars['stars', 'mass'], flat_indices, flat_mass * flat_weights)
-        grid_stars['stars', 'density'] = grid_stars['stars', 'mass'] / (resolution ** 3)
+        np.add.at(grid_stars[('gas', 'mass')], flat_indices, flat_mass * flat_weights)
+        grid_stars[('gas', 'density')] = grid_stars[('gas', 'mass')] / (resolution ** 3)
         
-        np.add.at(grid_stars['stars', 'age'], flat_indices, flat_age_mass * flat_weights)
-        for axis_num, axis in enumerate(['x', 'y', 'z']):
-            np.add.at(grid_stars['stars', f'velocity_{axis}'],
-                      flat_indices, 
-                      flat_velocity_mass[axis_num] * flat_weights)
+        np.add.at(grid_stars[('gas', 'age')], flat_indices, flat_age_mass * flat_weights)
+        np.add.at(grid_stars[('gas', 'velocity_x')], 
+                  flat_indices, flat_velocity_mass_x * flat_weights)
+        np.add.at(grid_stars[('gas', 'velocity_y')], 
+                  flat_indices, flat_velocity_mass_y * flat_weights)
+        np.add.at(grid_stars[('gas', 'velocity_z')], 
+                  flat_indices, flat_velocity_mass_z * flat_weights)
         
         # Divide by weights
-        zero_mask = (grid_stars['stars', 'mass'] == 0)
-        grid_stars['stars', 'age'][~zero_mask] /= grid_stars['stars', 'mass'][~zero_mask]
+        zero_mask = (grid_stars[('gas', 'mass')] == 0)
+        grid_stars[('gas', 'age')][~zero_mask] /= grid_stars[('gas', 'mass')][~zero_mask]
         for axis in ['x', 'y', 'z']:
-            grid_stars['stars', f'velocity_{axis}'][~zero_mask] /= (
-                grid_stars['stars', 'mass'][~zero_mask])
+            grid_stars[('gas', f'velocity_{axis}')][~zero_mask] /= (
+                grid_stars[('gas', 'mass')][~zero_mask])
         
         return(grid_stars)
         
@@ -526,17 +560,17 @@ def star_data_grid_conversion(
     
     n = int(2 * radius / resolution) + 1 # This is the dimension of our cubic grid
     
-    # First we need to initialize our Stellar Grid for all stars and young stars
-    # And make a dictionary of the raw data for young stars
+    # First we need to initialize our Stellar Grid for all stars
+    # They are still classified as 'gas' for yt as YTRegions do not recognize 'stars' or 'dm'
     
     subhalo_stars_physical_grid = {}
-    subhalo_stars_physical_grid['stars', 'mass']        = np.zeros(n ** 3)
-    subhalo_stars_physical_grid['stars', 'velocity']    = np.zeros(n ** 3)
-    subhalo_stars_physical_grid['stars', 'velocity_x']  = np.zeros(n ** 3)
-    subhalo_stars_physical_grid['stars', 'velocity_y']  = np.zeros(n ** 3)
-    subhalo_stars_physical_grid['stars', 'velocity_z']  = np.zeros(n ** 3)
-    subhalo_stars_physical_grid['stars', 'density']     = np.zeros(n ** 3)
-    subhalo_stars_physical_grid['stars', 'age']         = np.zeros(n ** 3)
+    subhalo_stars_physical_grid[('gas', 'mass')]        = np.zeros(n ** 3)
+    subhalo_stars_physical_grid[('gas', 'velocity')]    = np.zeros(n ** 3)
+    subhalo_stars_physical_grid[('gas', 'velocity_x')]  = np.zeros(n ** 3)
+    subhalo_stars_physical_grid[('gas', 'velocity_y')]  = np.zeros(n ** 3)
+    subhalo_stars_physical_grid[('gas', 'velocity_z')]  = np.zeros(n ** 3)
+    subhalo_stars_physical_grid[('gas', 'density')]     = np.zeros(n ** 3)
+    subhalo_stars_physical_grid[('gas', 'age')]         = np.zeros(n ** 3)
     
    
     ####################################################################################################################
@@ -546,30 +580,30 @@ def star_data_grid_conversion(
                                                 resolution,
                                                 n, radius)
     
-    subhalo_stars_physical_grid['stars', 'velocity'] = np.sqrt(
-        subhalo_stars_physical_grid['stars', 'velocity_x'] ** 2 +
-        subhalo_stars_physical_grid['stars', 'velocity_y'] ** 2 +
-        subhalo_stars_physical_grid['stars', 'velocity_z'] ** 2)
+    subhalo_stars_physical_grid[('gas', 'velocity')] = np.sqrt(
+        subhalo_stars_physical_grid[('gas', 'velocity_x')] ** 2 +
+        subhalo_stars_physical_grid[('gas', 'velocity_y')] ** 2 +
+        subhalo_stars_physical_grid[('gas', 'velocity_z')] ** 2)
     
     ####################################################################################################################
     
       
-    subhalo_stars_physical_grid['stars', 'density']  = (
-        subhalo_stars_physical_grid['stars', 'density'].reshape(
+    subhalo_stars_physical_grid[('gas', 'density')]  = (
+        subhalo_stars_physical_grid[('gas', 'density')].reshape(
             (n,n,n)).astype('float32'), "Msun/kpc**3")
-    subhalo_stars_physical_grid['stars', 'age']      = (
-        subhalo_stars_physical_grid['stars', 'age'].reshape(
+    subhalo_stars_physical_grid[('gas', 'age')]      = (
+        subhalo_stars_physical_grid[('gas', 'age')].reshape(
             (n,n,n)).astype('float32'), "Gyr")
-    subhalo_stars_physical_grid['stars', 'mass']     = (
-        subhalo_stars_physical_grid['stars', 'mass'].reshape(
+    subhalo_stars_physical_grid[('gas', 'mass')]     = (
+        subhalo_stars_physical_grid[('gas', 'mass')].reshape(
             (n,n,n)).astype('float32'), "Msun")
-    subhalo_stars_physical_grid['stars', 'velocity'] = (
-        subhalo_stars_physical_grid['stars', 'velocity'].reshape(
+    subhalo_stars_physical_grid[('gas', 'velocity')] = (
+        subhalo_stars_physical_grid[('gas', 'velocity')].reshape(
             (n,n,n)).astype('float32'), "km/s")
     
     for axis in ['x', 'y', 'z']:
-        subhalo_stars_physical_grid['stars', f'velocity_{axis}'] = (
-            subhalo_stars_physical_grid['stars', f'velocity_{axis}'].reshape(
+        subhalo_stars_physical_grid[('gas', f'velocity_{axis}')] = (
+            subhalo_stars_physical_grid[('gas', f'velocity_{axis}')].reshape(
                 (n,n,n)).astype('float32'), "km/s")
         
     
@@ -586,9 +620,13 @@ def dm_data_grid_conversion(
         radius=15,
         ):
     
+    # This function places the dark matter particles onto the uniform cubic grid using a cloud-in-cell approach
+    
     
     def cloud_in_cell(raw_dm, grid_dm, resolution, n, radius):
-        # We need to use a cloud-in-cell method of smoothing the stars, so we use the nearest neighbour 8 cells to the stellar particle
+        # Dark matter uses the same placement method as the stellar particles
+        # We need to use a cloud-in-cell method of smoothing the dark matter
+        # We use the nearest neighbour 8 cells to the dm particle
         # It needs to be a 2x2x2 cube around the particle, a floor-ceiling x floor ceiling x floor ceiling approach
         # Mass is proportional by: (i+1)x * (j+1)y * (k+1)z for coordinates (i,j,k) where i = x.floor()
         
@@ -652,19 +690,23 @@ def dm_data_grid_conversion(
         flat_indices = indices.ravel()
         flat_weights = weights.ravel()
         flat_dens = np.repeat(raw_dm['SubfindDMDensity'], 8)
-        flat_velocity_density = np.repeat(raw_dm['Velocities'], 8) * flat_dens
+        flat_velocity_density_x = np.repeat(raw_dm['Velocities'][:, 0], 8) * flat_dens
+        flat_velocity_density_y = np.repeat(raw_dm['Velocities'][:, 1], 8) * flat_dens
+        flat_velocity_density_z = np.repeat(raw_dm['Velocities'][:, 2], 8) * flat_dens
         
-        np.add.at(grid_dm['dm', 'density'], flat_indices, flat_dens * flat_weights)
-        grid_dm['dm', 'mass'] = grid_dm['dm', 'density'] * (resolution ** 3)
-        for axis_num, axis in enumerate(['x', 'y', 'z']):
-            np.add.at(grid_dm['dm', f'velocity{axis}'],
-                      flat_indices,
-                      flat_velocity_density[axis_num] * flat_weights)
+        np.add.at(grid_dm[('gas', 'density')], flat_indices, flat_dens * flat_weights)
+        grid_dm[('gas', 'mass')] = grid_dm[('gas', 'density')] * (resolution ** 3)
+        np.add.at(grid_dm[('gas', 'velocity_x')], 
+                  flat_indices, flat_velocity_density_x * flat_weights)
+        np.add.at(grid_dm[('gas', 'velocity_y')], 
+                  flat_indices, flat_velocity_density_y * flat_weights)
+        np.add.at(grid_dm[('gas', 'velocity_z')], 
+                  flat_indices, flat_velocity_density_z * flat_weights)
         
-        zero_mask = grid_dm['dm', 'density'] == 0
+        zero_mask = grid_dm[('gas', 'density')] == 0
         for axis in ['x', 'y', 'z']:
-            grid_dm['dm', f'velocity_{axis}'][~zero_mask] /= (
-                grid_dm['dm', 'density'][~zero_mask])
+            grid_dm[('gas', f'velocity_{axis}')][~zero_mask] /= (
+                grid_dm[('gas', 'density')][~zero_mask])
          
         return(grid_dm)
         
@@ -677,12 +719,12 @@ def dm_data_grid_conversion(
     # And make a dictionary of the raw data for young stars
     
     subhalo_dm_physical_grid = {}
-    subhalo_dm_physical_grid['dm', 'density']    = np.zeros(n ** 3)
-    subhalo_dm_physical_grid['dm', 'velocity']   = np.zeros(n ** 3)
-    subhalo_dm_physical_grid['dm', 'velocity_x'] = np.zeros(n ** 3)
-    subhalo_dm_physical_grid['dm', 'velocity_y'] = np.zeros(n ** 3)
-    subhalo_dm_physical_grid['dm', 'velocity_z'] = np.zeros(n ** 3)
-    subhalo_dm_physical_grid['dm', 'mass']       = np.zeros(n ** 3)
+    subhalo_dm_physical_grid[('gas', 'density')]    = np.zeros(n ** 3)
+    subhalo_dm_physical_grid[('gas', 'velocity')]   = np.zeros(n ** 3)
+    subhalo_dm_physical_grid[('gas', 'velocity_x')] = np.zeros(n ** 3)
+    subhalo_dm_physical_grid[('gas', 'velocity_y')] = np.zeros(n ** 3)
+    subhalo_dm_physical_grid[('gas', 'velocity_z')] = np.zeros(n ** 3)
+    subhalo_dm_physical_grid[('gas', 'mass')]       = np.zeros(n ** 3)
     
    
     ####################################################################################################################
@@ -692,26 +734,26 @@ def dm_data_grid_conversion(
                                                 resolution,
                                                 n, radius)
     
-    subhalo_dm_physical_grid['dm', 'velocity'] = np.sqrt(
-        subhalo_dm_physical_grid['dm', 'velocity_x'] ** 2 +
-        subhalo_dm_physical_grid['dm', 'velocity_y'] ** 2 +
-        subhalo_dm_physical_grid['dm', 'velocity_z'] ** 2)
+    subhalo_dm_physical_grid[('gas', 'velocity')] = np.sqrt(
+        subhalo_dm_physical_grid[('gas', 'velocity_x')] ** 2 +
+        subhalo_dm_physical_grid[('gas', 'velocity_y')] ** 2 +
+        subhalo_dm_physical_grid[('gas', 'velocity_z')] ** 2)
     
     ####################################################################################################################
     
-    subhalo_dm_physical_grid['dm', 'mass']     = (
-        subhalo_dm_physical_grid['dm', 'mass'].reshape(
+    subhalo_dm_physical_grid[('gas', 'mass')]     = (
+        subhalo_dm_physical_grid[('gas', 'mass')].reshape(
             (n,n,n)).astype('float32'), "Msun/kpc**3")
-    subhalo_dm_physical_grid['dm', 'density']  = (
-        subhalo_dm_physical_grid['dm', 'density'].reshape(
+    subhalo_dm_physical_grid[('gas', 'density')]  = (
+        subhalo_dm_physical_grid[('gas', 'density')].reshape(
             (n,n,n)).astype('float32'), "Msun")
-    subhalo_dm_physical_grid['dm', 'velocity'] = (
-        subhalo_dm_physical_grid['dm', 'velocity'].reshape(
+    subhalo_dm_physical_grid[('gas', 'velocity')] = (
+        subhalo_dm_physical_grid[('gas', 'velocity')].reshape(
             (n,n,n)).astype('float32'), "km/s")
     
     for axis in ['x', 'y', 'z']:
-        subhalo_dm_physical_grid['dm', f'velocity_{axis}']       = (
-            subhalo_dm_physical_grid['dm', f'velocity_{axis}'].reshape(
+        subhalo_dm_physical_grid[('gas', f'velocity_{axis}')]       = (
+            subhalo_dm_physical_grid[('gas', f'velocity_{axis}')].reshape(
                 (n,n,n)).astype('float32'), "km/s")
         
     ####################################################################################################################
