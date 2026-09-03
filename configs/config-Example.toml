@@ -20,4 +20,4 @@ nn_multiplier = 3
 # Plotting Parameters
 
 plotting_axis = 'z'
-cmap = 'arbre'
+cmap = 'nipy_spectral'
