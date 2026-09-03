@@ -147,8 +147,9 @@ def load_subhalo_stars(
         subhalo_stars_physical['stellar_ages'] = (current_time - formation_times).value                                 # Gyr
         
     else:
-        subhalo_stars_physical['stellar_ages'] = (0.95 / ((1 + z_redshift) / 7.0) ** 1.5
-                                                  - 0.95 / ((1 + stellar_redshifts) / 7.0) ** 1.5)                      # Gyr
+        subhalo_stars_physical['stellar_ages'] = (
+            0.95 / ((1 + z_redshift) / 7.0) ** 1.5 - 0.95 / 
+            ((1 + stellar_redshifts) / 7.0) ** 1.5)                                       # Gyr
 
 
     return(subhalo_stars_physical)
@@ -177,18 +178,25 @@ def load_subhalo_dm(
     
     
     # We now put the coordinates into units of kpc from ckpc/h
-    subhalo_dm_physical['Coordinates'] = subhalo_dm['Coordinates'] * scale_factor / h_cosmo - origin                    # kpc
-    particle_radii = np.linalg.norm(subhalo_dm_physical['Coordinates'], axis=1)
+    subhalo_dm_physical['Coordinates'] = (
+        subhalo_dm['Coordinates'] * 
+        scale_factor / h_cosmo - origin)                                                  # kpc
+    
+    particle_radii = np.linalg.norm(
+        subhalo_dm_physical['Coordinates'], axis=1)
     
     # Remove any unwanted data beyond the specified radius
     mask_good_dm = (particle_radii <= radius)
     subhalo_dm_physical['Coordinates'] = subhalo_dm_physical['Coordinates'][mask_good_dm]
     
             
-    subhalo_dm_physical['SubfindDMDensity'] = subhalo_dm['SubfindDMDensity'][mask_good_dm] * (
+    subhalo_dm_physical['SubfindDMDensity'] = (
+        subhalo_dm['SubfindDMDensity'][mask_good_dm] * 
         1e10 * h_cosmo ** 2 / scale_factor ** 3)                                                                        # M_sun/kpc^3
     
-    subhalo_dm_physical['Velocities'] = subhalo_dm['Velocities'][mask_good_dm] * np.sqrt(scale_factor)                  # km/s
+    subhalo_dm_physical['Velocities'] = (
+        subhalo_dm['Velocities'][mask_good_dm, :]
+        * np.sqrt(scale_factor))                                                          # km/s
     
     
     return(subhalo_dm_physical)
@@ -264,9 +272,12 @@ def gas_data_grid_conversion(
     # Start by initiating our data grids
     subhalo_gas_physical_grid = {}
     subhalo_gas_physical_grid['gas', 'mass'] = np.zeros(n ** 3)
-    subhalo_gas_physical_grid['gas', 'velocity'] = np.zeros(n ** 3)
     subhalo_gas_physical_grid['gas', 'density'] = np.zeros(n ** 3)
     subhalo_gas_physical_grid['gas', 'temperature'] = np.zeros(n ** 3)
+    subhalo_gas_physical_grid['gas', 'velocity'] = np.zeros(n ** 3)
+    subhalo_gas_physical_grid['gas', 'velocity_x'] = np.zeros(n ** 3)
+    subhalo_gas_physical_grid['gas', 'velocity_y'] = np.zeros(n ** 3)
+    subhalo_gas_physical_grid['gas', 'velocity_z'] = np.zeros(n ** 3)
 
     # Coordinates
     min_all, max_all = -radius, radius
@@ -336,8 +347,10 @@ def gas_data_grid_conversion(
         subhalo_gas_physical_grid['gas', 'mass'][indices_box[ind]] += (
             weight * subhalo_gas_physical['Masses'][i])
         
-        subhalo_gas_physical_grid['gas', 'velocity'][indices_box[ind]] += weight * (
-            subhalo_gas_physical['Masses'][i] * subhalo_gas_physical['Velocities'][i])
+        for axis_num, axis in enumerate(['x', 'y', 'z']):        
+            subhalo_gas_physical_grid['gas', f'velocity_{axis}'][indices_box[ind]] += (
+                weight * (subhalo_gas_physical['Masses'][i] *
+                          subhalo_gas_physical['Velocities'][i, axis_num]))        
         
         subhalo_gas_physical_grid['gas', 'temperature'][indices_box[ind]] += weight * (
             subhalo_gas_physical['Masses'][i] * subhalo_gas_physical['Temperature'][i])
@@ -369,32 +382,48 @@ def gas_data_grid_conversion(
     
     subhalo_gas_physical_grid['gas', 'mass'] /= n ** 3                                                                  # M_sun
     
-    subhalo_gas_physical_grid['gas', 'velocity'] / sum_weights2                                                         # km/s
+    for axis in ['x', 'y', 'z']:
+        subhalo_gas_physical_grid['gas', f'velocity_{axis}'] /= sum_weights2                                                         # km/s
     
-    subhalo_gas_physical_grid['gas', 'temperature'] / sum_weights2                                                      # K
+    subhalo_gas_physical_grid['gas', 'temperature'] /= sum_weights2                                                     # K
 
-
+    
+    subhalo_gas_physical_grid['gas', 'velocity'] = np.sqrt(
+        subhalo_gas_physical_grid['gas', 'velocity_x'] ** 2 +
+        subhalo_gas_physical_grid['gas', 'velocity_y'] ** 2 +
+        subhalo_gas_physical_grid['gas', 'velocity_z'] ** 2)
 
     ####################################################################################################################
 
     subhalo_gas_physical_grid['gas', 'density']     = (
-        subhalo_gas_physical_grid['gas', 'density'].reshape((n,n,n)).astype('float32'), "Msun/kpc**3")
+        subhalo_gas_physical_grid['gas', 'density'].reshape(
+            (n,n,n)).astype('float32'), "Msun/kpc**3")
     subhalo_gas_physical_grid['gas', 'mass']        = (
-        subhalo_gas_physical_grid['gas', 'mass'].reshape((n,n,n)).astype('float32'), "Msun")
+        subhalo_gas_physical_grid['gas', 'mass'].reshape(
+            (n,n,n)).astype('float32'), "Msun")
     subhalo_gas_physical_grid['gas', 'velocity']    = (
-        subhalo_gas_physical_grid['gas', 'velocity'].reshape((n,n,n)).astype('float32'), "km/s")
+        subhalo_gas_physical_grid['gas', 'velocity'].reshape(
+            (n,n,n)).astype('float32'), "km/s")
     subhalo_gas_physical_grid['gas', 'temperature'] = (
-        subhalo_gas_physical_grid['gas', 'temperature'].reshape((n,n,n)).astype('float32'), "K")
+        subhalo_gas_physical_grid['gas', 'temperature'].reshape(
+            (n,n,n)).astype('float32'), "K")
+    
+    for axis in ['x', 'y', 'z']:
+        subhalo_gas_physical_grid['gas', f'velocity_{axis}']    = (
+            subhalo_gas_physical_grid['gas', f'velocity_{axis}'].reshape(
+                (n,n,n)).astype('float32'), "km/s")
     
     
     subhalo_cool_gas_physical_grid = subhalo_gas_physical_grid.copy()
 
-    hot_mask = subhalo_gas_physical_grid['gas', 'temperature'] > 5e4
+    hot_mask = (subhalo_gas_physical_grid['gas', 'temperature'] > 5e4)
     
     subhalo_cool_gas_physical_grid['gas', 'density'][hot_mask]      = 0
     subhalo_cool_gas_physical_grid['gas', 'mass'][hot_mask]         = 0
     subhalo_cool_gas_physical_grid['gas', 'velocity'][hot_mask]     = 0
     subhalo_cool_gas_physical_grid['gas', 'temperature'][hot_mask]  = 0
+    for axis in ['x', 'y', 'z']:
+        subhalo_cool_gas_physical_grid['gas', f'velocity_{axis}'][hot_mask]  = 0
     
     return(subhalo_gas_physical_grid, subhalo_cool_gas_physical_grid)
 
@@ -478,12 +507,17 @@ def star_data_grid_conversion(
         grid_stars['stars', 'density'] = grid_stars['stars', 'mass'] / (resolution ** 3)
         
         np.add.at(grid_stars['stars', 'age'], flat_indices, flat_age_mass * flat_weights)
-        np.add.at(grid_stars['stars', 'velocity'], flat_indices, flat_velocity_mass * flat_weights)
+        for axis_num, axis in enumerate(['x', 'y', 'z']):
+            np.add.at(grid_stars['stars', f'velocity_{axis}'],
+                      flat_indices, 
+                      flat_velocity_mass[axis_num] * flat_weights)
         
         # Divide by weights
         zero_mask = (grid_stars['stars', 'mass'] == 0)
         grid_stars['stars', 'age'][~zero_mask] /= grid_stars['stars', 'mass'][~zero_mask]
-        grid_stars['stars', 'velocity'][~zero_mask]   /= grid_stars['stars', 'mass'][~zero_mask]
+        for axis in ['x', 'y', 'z']:
+            grid_stars['stars', f'velocity_{axis}'][~zero_mask] /= (
+                grid_stars['stars', 'mass'][~zero_mask])
         
         return(grid_stars)
         
@@ -496,10 +530,13 @@ def star_data_grid_conversion(
     # And make a dictionary of the raw data for young stars
     
     subhalo_stars_physical_grid = {}
-    subhalo_stars_physical_grid['stars', 'mass']     = np.zeros(n ** 3)
-    subhalo_stars_physical_grid['stars', 'velocity'] = np.zeros(n ** 3)
-    subhalo_stars_physical_grid['stars', 'density']  = np.zeros(n ** 3)
-    subhalo_stars_physical_grid['stars', 'age']      = np.zeros(n ** 3)
+    subhalo_stars_physical_grid['stars', 'mass']        = np.zeros(n ** 3)
+    subhalo_stars_physical_grid['stars', 'velocity']    = np.zeros(n ** 3)
+    subhalo_stars_physical_grid['stars', 'velocity_x']  = np.zeros(n ** 3)
+    subhalo_stars_physical_grid['stars', 'velocity_y']  = np.zeros(n ** 3)
+    subhalo_stars_physical_grid['stars', 'velocity_z']  = np.zeros(n ** 3)
+    subhalo_stars_physical_grid['stars', 'density']     = np.zeros(n ** 3)
+    subhalo_stars_physical_grid['stars', 'age']         = np.zeros(n ** 3)
     
    
     ####################################################################################################################
@@ -509,17 +546,32 @@ def star_data_grid_conversion(
                                                 resolution,
                                                 n, radius)
     
+    subhalo_stars_physical_grid['stars', 'velocity'] = np.sqrt(
+        subhalo_stars_physical_grid['stars', 'velocity_x'] ** 2 +
+        subhalo_stars_physical_grid['stars', 'velocity_y'] ** 2 +
+        subhalo_stars_physical_grid['stars', 'velocity_z'] ** 2)
+    
     ####################################################################################################################
     
       
     subhalo_stars_physical_grid['stars', 'density']  = (
-        subhalo_stars_physical_grid['stars', 'density'].reshape((n,n,n)).astype('float32'), "Msun/kpc**3")
+        subhalo_stars_physical_grid['stars', 'density'].reshape(
+            (n,n,n)).astype('float32'), "Msun/kpc**3")
     subhalo_stars_physical_grid['stars', 'age']      = (
-        subhalo_stars_physical_grid['stars', 'age'].reshape((n,n,n)).astype('float32'), "Gyr")
-    subhalo_stars_physical_grid['stars', 'velocity'] = (
-        subhalo_stars_physical_grid['stars', 'velocity'].reshape((n,n,n)).astype('float32'), "km/s")
+        subhalo_stars_physical_grid['stars', 'age'].reshape(
+            (n,n,n)).astype('float32'), "Gyr")
     subhalo_stars_physical_grid['stars', 'mass']     = (
-        subhalo_stars_physical_grid['stars', 'mass'].reshape((n,n,n)).astype('float32'), "Msun")
+        subhalo_stars_physical_grid['stars', 'mass'].reshape(
+            (n,n,n)).astype('float32'), "Msun")
+    subhalo_stars_physical_grid['stars', 'velocity'] = (
+        subhalo_stars_physical_grid['stars', 'velocity'].reshape(
+            (n,n,n)).astype('float32'), "km/s")
+    
+    for axis in ['x', 'y', 'z']:
+        subhalo_stars_physical_grid['stars', f'velocity_{axis}'] = (
+            subhalo_stars_physical_grid['stars', f'velocity_{axis}'].reshape(
+                (n,n,n)).astype('float32'), "km/s")
+        
     
         
     ####################################################################################################################
@@ -604,10 +656,15 @@ def dm_data_grid_conversion(
         
         np.add.at(grid_dm['dm', 'density'], flat_indices, flat_dens * flat_weights)
         grid_dm['dm', 'mass'] = grid_dm['dm', 'density'] * (resolution ** 3)
-        np.add.at(grid_dm['dm', 'velocity'], flat_indices, flat_velocity_density * flat_weights)
+        for axis_num, axis in enumerate(['x', 'y', 'z']):
+            np.add.at(grid_dm['dm', f'velocity{axis}'],
+                      flat_indices,
+                      flat_velocity_density[axis_num] * flat_weights)
         
         zero_mask = grid_dm['dm', 'density'] == 0
-        grid_dm['dm', 'velocity'][~zero_mask] /= grid_dm['dm', 'density'][~zero_mask]
+        for axis in ['x', 'y', 'z']:
+            grid_dm['dm', f'velocity_{axis}'][~zero_mask] /= (
+                grid_dm['dm', 'density'][~zero_mask])
          
         return(grid_dm)
         
@@ -620,9 +677,12 @@ def dm_data_grid_conversion(
     # And make a dictionary of the raw data for young stars
     
     subhalo_dm_physical_grid = {}
-    subhalo_dm_physical_grid['dm', 'density'] = np.zeros(n ** 3)
-    subhalo_dm_physical_grid['dm', 'velocity'] = np.zeros(n ** 3)
-    subhalo_dm_physical_grid['dm', 'mass'] = np.zeros(n ** 3)
+    subhalo_dm_physical_grid['dm', 'density']    = np.zeros(n ** 3)
+    subhalo_dm_physical_grid['dm', 'velocity']   = np.zeros(n ** 3)
+    subhalo_dm_physical_grid['dm', 'velocity_x'] = np.zeros(n ** 3)
+    subhalo_dm_physical_grid['dm', 'velocity_y'] = np.zeros(n ** 3)
+    subhalo_dm_physical_grid['dm', 'velocity_z'] = np.zeros(n ** 3)
+    subhalo_dm_physical_grid['dm', 'mass']       = np.zeros(n ** 3)
     
    
     ####################################################################################################################
@@ -632,15 +692,27 @@ def dm_data_grid_conversion(
                                                 resolution,
                                                 n, radius)
     
+    subhalo_dm_physical_grid['dm', 'velocity'] = np.sqrt(
+        subhalo_dm_physical_grid['dm', 'velocity_x'] ** 2 +
+        subhalo_dm_physical_grid['dm', 'velocity_y'] ** 2 +
+        subhalo_dm_physical_grid['dm', 'velocity_z'] ** 2)
+    
     ####################################################################################################################
     
-    subhalo_dm_physical_grid['dm', 'mass']           = (
-        subhalo_dm_physical_grid['dm', 'mass'].reshape((n,n,n)).astype('float32'), "Msun/kpc**3")
-    subhalo_dm_physical_grid['dm', 'velocity']       = (
-        subhalo_dm_physical_grid['dm', 'velocity'].reshape((n,n,n)).astype('float32'), "km/s")
-    subhalo_dm_physical_grid['dm', 'density'] = (
-        subhalo_dm_physical_grid['dm', 'density'].reshape((n,n,n)).astype('float32'), "Msun")
+    subhalo_dm_physical_grid['dm', 'mass']     = (
+        subhalo_dm_physical_grid['dm', 'mass'].reshape(
+            (n,n,n)).astype('float32'), "Msun/kpc**3")
+    subhalo_dm_physical_grid['dm', 'density']  = (
+        subhalo_dm_physical_grid['dm', 'density'].reshape(
+            (n,n,n)).astype('float32'), "Msun")
+    subhalo_dm_physical_grid['dm', 'velocity'] = (
+        subhalo_dm_physical_grid['dm', 'velocity'].reshape(
+            (n,n,n)).astype('float32'), "km/s")
     
+    for axis in ['x', 'y', 'z']:
+        subhalo_dm_physical_grid['dm', f'velocity_{axis}']       = (
+            subhalo_dm_physical_grid['dm', f'velocity_{axis}'].reshape(
+                (n,n,n)).astype('float32'), "km/s")
         
     ####################################################################################################################
     

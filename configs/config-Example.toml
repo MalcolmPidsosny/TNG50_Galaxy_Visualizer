@@ -1,0 +1,23 @@
+#
+# Configuration file for main.py
+#
+
+snapshot = 25
+subhalo_ID = 0
+
+data_path = '/home/malcolmp/projects/rrg-sellison/Illustris-TNG/SimData/TNG50-1/output'
+plot_path = '/home/malcolmp/scratch/Plots/Clump_Finder_Plots/TNG50/Snapshot_025/TNG_0/'
+
+##################################################################################
+
+# Run Parameters
+
+radius = 15
+resolution = 0.1
+nn_multiplier = 3
+
+
+# Plotting Parameters
+
+plotting_axis = 'z'
+cmap = 'arbre'
